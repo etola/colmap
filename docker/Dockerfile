@@ -66,23 +66,6 @@ RUN cd /colmap && \
         -DBLA_VENDOR=Intel10_64lp && \
     ninja install
 
-# Build pycolmap against the COLMAP library just installed above.
-# python/CMakeLists.txt uses find_package(colmap REQUIRED) rather than
-# rebuilding the C++ core, so this only compiles the pybind11 bindings.
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        python3 \
-        python3-pip \
-        python3-dev \
-        git && \
-    rm -rf /var/lib/apt/lists/*
-
-RUN cd /colmap && \
-    python3 -m pip install --break-system-packages --no-cache-dir \
-        --target=/pycolmap-install \
-        --config-settings=cmake.define.CMAKE_PREFIX_PATH=/colmap-install \
-        .
-
 #
 # Stage to export build caches for CI round-tripping via actions/cache.
 #
@@ -121,8 +104,7 @@ RUN apt-get update && \
         libmkl-locale \
         libmkl-intel-lp64 \
         libmkl-intel-thread \
-        libmkl-core \
-        python3 && \
+        libmkl-core && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -133,12 +115,3 @@ RUN apt-get update && \
 # a library. For instance, CMake will be able to find COLMAP easily with the
 # command: find_package(COLMAP REQUIRED).
 COPY --from=builder /colmap-install/ /usr/local/
-
-# Make the pycolmap bindings built in the builder stage importable without
-# needing pip/venv machinery in the runtime image.
-COPY --from=builder /pycolmap-install/ /usr/local/lib/pycolmap/
-ENV PYTHONPATH=/usr/local/lib/pycolmap
-# _core.so was linked against libcolmap.so under /colmap-install in the
-# builder stage; that path doesn't exist here, only its /usr/local copy.
-# LD_LIBRARY_PATH covers this regardless of what RPATH got embedded.
-ENV LD_LIBRARY_PATH=/usr/local/lib
